@@ -1,18 +1,21 @@
 # IDX Toolkit — SUPERKETAT Scanner + Analisa Valuasi Saham
 
-Web app gabungan dari 2 notebook:
+Web app gabungan dari 2 notebook + 1 fitur baru:
 - `Superketat.ipynb` → tab **SUPERKETAT Scanner**
 - `Analisa_Valuasi_Saham.ipynb` → tab **Analisa Valuasi**
+- Tab baru **⭐ Star Bottom Finder** — kriteria dirancang baru untuk IDX (bukan port notebook lama):
+  saham yang deep drawdown dari ATH, basing ketat di dasar, lalu breakout tajam dengan
+  konfirmasi volume & momentum.
 
-Dibangun dengan Streamlit. Semua logika perhitungan (indikator, scoring,
-persentil historis, composite score) sama persis dengan notebook asli —
+Dibangun dengan Streamlit. Logika 2 tab pertama sama persis dengan notebook asli —
 hanya dibungkus jadi web interaktif.
 
 ## Isi folder
 ```
-app.py            # UI utama Streamlit (2 tab)
+app.py            # UI utama Streamlit (3 tab)
 scanner.py         # logika SUPERKETAT scanner
 valuasi.py          # logika analisa valuasi persentil historis
+star_bottom.py       # logika Star Bottom Finder (kriteria baru)
 stocks_list.py      # daftar ±800 saham IDX (universe default)
 requirements.txt
 ```
@@ -20,7 +23,7 @@ requirements.txt
 ## Cara deploy GRATIS — Streamlit Community Cloud (paling praktis)
 
 1. **Buat repo GitHub baru** (public, gratis) dan upload semua file di folder ini
-   (`app.py`, `scanner.py`, `valuasi.py`, `stocks_list.py`, `requirements.txt`).
+   (`app.py`, `scanner.py`, `valuasi.py`, `star_bottom.py`, `stocks_list.py`, `requirements.txt`).
    Contoh: buat repo `idx-toolkit`, upload lewat web GitHub (drag & drop) atau `git push`.
 
 2. Buka **https://share.streamlit.io** → login pakai akun GitHub.
