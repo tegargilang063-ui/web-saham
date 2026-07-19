@@ -11,6 +11,7 @@ import streamlit as st
 from stocks_list import STOCKS_IDX_ALL
 import scanner
 import valuasi
+import star_bottom
 
 st.set_page_config(page_title="IDX Toolkit — Scanner & Valuasi", layout="wide", page_icon="📈")
 
@@ -23,10 +24,12 @@ def render_html(html: str):
     st.markdown(cleaned, unsafe_allow_html=True)
 
 st.title("📈 IDX Toolkit")
-st.caption("SUPERKETAT Scanner (CIA style) + Analisa Valuasi Saham — data via Yahoo Finance. "
-           "Bukan rekomendasi investasi, selalu DYOR.")
+st.caption("SUPERKETAT Scanner (CIA style) + Analisa Valuasi Saham + Star Bottom Finder — "
+           "data via Yahoo Finance. Bukan rekomendasi investasi, selalu DYOR.")
 
-tab_scanner, tab_valuasi = st.tabs(["🔍 SUPERKETAT Scanner", "📊 Analisa Valuasi"])
+tab_scanner, tab_valuasi, tab_starbottom = st.tabs(
+    ["🔍 SUPERKETAT Scanner", "📊 Analisa Valuasi", "⭐ Star Bottom Finder"])
+
 
 # ============================================================
 # TAB 1 — SUPERKETAT SCANNER
@@ -306,6 +309,128 @@ with tab_valuasi:
                 st.download_button("💾 Download Excel (semua sheet)", buf.getvalue(),
                                     "IDX_Analyzer.xlsx",
                                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# ============================================================
+# TAB 3 — STAR BOTTOM FINDER
+# ============================================================
+with tab_starbottom:
+    st.subheader("⭐ Star Bottom Finder")
+    st.markdown(
+        "Mencari saham yang **sudah lama didiskon habis-habisan** (downtrend panjang, "
+        "deep drawdown dari ATH), lalu **basing/konsolidasi ketat** di area terendah, "
+        "dan sekarang baru **breakout tajam** dari dasar itu — dikonfirmasi volume & momentum. "
+        "Contoh polanya seperti KJEN: turun bertahun-tahun → basing ketat di bawah → reversal besar."
+    )
+    st.caption("⚠️ Kriteria ini saya rancang baru untuk IDX (bukan hasil port notebook lama), "
+               "jadi anggap sebagai titik awal — semua ambang batas bisa diatur di bawah.")
+
+    with st.expander("⚙️ Konfigurasi", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            min_drawdown = st.slider("Min drawdown dari ATH (%)", 20, 90, 50, 5)
+            periode_dl = st.selectbox("Periode data historis diambil", ["3y", "5y", "10y", "max"], index=1)
+        with c2:
+            basing_bulan = st.slider("Panjang periode basing (bulan)", 2, 12, 4)
+            max_basing_range = st.slider("Maks lebar basing (%)", 5, 50, 25, 5)
+        with c3:
+            breakout_minggu = st.slider("Panjang jendela breakout (minggu terakhir)", 1, 12, 4)
+            min_breakout_gain = st.slider("Min kenaikan dari basing low (%)", 5, 100, 15, 5)
+
+        c4, c5 = st.columns(2)
+        with c4:
+            sb_min_value = st.number_input("Min nilai transaksi (Rp miliar/hari)", 0.1, 50.0, 0.5, 0.1,
+                                            key="sb_min_value")
+            sb_max_workers = st.slider("Jumlah thread paralel", 1, 8, 4, key="sb_workers")
+        with c5:
+            sb_universe_mode = st.radio("Universe saham", ["Semua saham (±800, LAMBAT)", "Custom / subset"],
+                                         horizontal=True, key="sb_universe_mode")
+
+        if sb_universe_mode == "Custom / subset":
+            sb_custom_list = st.text_area(
+                "Kode saham (pisahkan koma, tanpa .JK)",
+                value="KJEN, BUMI, ENRG, DEWA, ELSA",
+                key="sb_custom_list",
+            )
+            sb_tickers = [f"{s.strip().upper()}.JK" for s in sb_custom_list.split(",") if s.strip()]
+        else:
+            sb_tickers = [f"{s}.JK" for s in STOCKS_IDX_ALL]
+
+        st.caption(f"Total saham akan di-scan: **{len(sb_tickers)}**. Karena butuh data historis "
+                   f"{periode_dl} (bukan cuma beberapa bulan), scan ini **jauh lebih lambat** dari "
+                   f"SUPERKETAT — untuk universe penuh bisa 20-60 menit. Disarankan pakai mode "
+                   f"Custom/subset untuk saham yang mau dipantau saja.")
+
+    sb_run = st.button("🚀 Cari Star Bottom", type="primary", key="sb_run_btn")
+
+    if sb_run:
+        cfg = {
+            "basing_window_hari": basing_bulan * 21,
+            "breakout_window_hari": breakout_minggu * 5,
+            "min_drawdown_pct": min_drawdown,
+            "max_basing_range_pct": max_basing_range,
+            "min_breakout_gain_pct": min_breakout_gain,
+            "periode_download": periode_dl,
+            "min_value_miliar": sb_min_value,
+            "max_workers": sb_max_workers,
+            "delay_antar_saham": 0.3,
+            "max_retry": 2,
+            "delay_retry": 2.0,
+        }
+
+        sb_progress = st.progress(0.0)
+        sb_status = st.empty()
+
+        def sb_progress_cb(done, total, kode):
+            sb_progress.progress(done / total)
+            sb_status.text(f"Scanning... {done}/{total} ({kode})")
+
+        t0 = time.time()
+        with st.spinner("Menjalankan scan Star Bottom (butuh data 3-10 tahun per saham, lebih lambat)..."):
+            sb_hasil, sb_gagal = star_bottom.run_scan(sb_tickers, cfg, sb_progress_cb)
+        elapsed = time.time() - t0
+
+        sb_progress.progress(1.0)
+        sb_status.text(f"Selesai dalam {elapsed:.0f} detik.")
+
+        st.session_state["sb_hasil"] = sb_hasil
+        st.session_state["sb_gagal"] = sb_gagal
+
+    if "sb_hasil" in st.session_state:
+        sb_hasil = st.session_state["sb_hasil"]
+        sb_gagal = st.session_state["sb_gagal"]
+
+        if not sb_hasil:
+            st.warning("❌ Tidak ada saham yang cocok pola Star Bottom. Coba longgarkan kriteria "
+                       "(turunkan min drawdown, perlebar basing range, atau turunkan min breakout gain).")
+        else:
+            df_sb = pd.DataFrame(sb_hasil).sort_values("StarBottom_Score", ascending=False).reset_index(drop=True)
+            st.success(f"✅ {len(df_sb)} saham cocok pola Star Bottom (dari {len(sb_gagal) + len(df_sb)} diproses).")
+
+            kolom_sb_ringkas = ["Kode", "Harga_Now", "Drawdown_ATH%", "Basing_Range%",
+                                 "Breakout_Gain%", "Vol_Spike_Breakout", "MACD_Golden", "StarBottom_Score"]
+            st.dataframe(df_sb[[c for c in kolom_sb_ringkas if c in df_sb.columns]],
+                         use_container_width=True, height=450)
+
+            with st.expander("📋 Tabel lengkap (semua metrik)"):
+                st.dataframe(df_sb, use_container_width=True, height=500)
+
+            csv_sb = df_sb.to_csv(index=False).encode("utf-8")
+            st.download_button("💾 Download CSV", csv_sb, "star_bottom_scan.csv", "text/csv", key="sb_csv")
+
+            with st.expander("📖 Cara membaca kolom"):
+                st.markdown("""
+                | Kolom | Arti |
+                |---|---|
+                | `Drawdown_ATH%` | Seberapa dalam harga sekarang di bawah ATH periode data |
+                | `Basing_Range%` | Lebar range harga saat fase basing (makin kecil = makin ketat) |
+                | `Breakout_Gain%` | Kenaikan harga sekarang dari titik terendah basing |
+                | `Vol_Spike_Breakout` | Rasio volume rata-rata saat breakout vs saat basing |
+                | `MACD_Golden` | Y = MACD sudah golden cross (bullish) |
+                | `StarBottom_Score` | Skor komposit 0-100 dari 5 komponen di atas |
+                """)
+            st.caption("Kriteria dirancang berdasar pola downtrend panjang + basing ketat + breakout "
+                       "bervolume (mis. KJEN). Bukan rekomendasi investasi — selalu cek chart & "
+                       "fundamental sebelum mengambil keputusan.")
 
 st.markdown("---")
 st.caption("⚠️ Bukan rekomendasi investasi. Data dari Yahoo Finance, bisa delay/tidak sepenuhnya akurat. "
