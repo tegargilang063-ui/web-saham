@@ -112,10 +112,17 @@ with tab_scanner:
         else:
             df_hasil = pd.DataFrame(hasil_scan).sort_values("SK_Score", ascending=False).reset_index(drop=True)
             st.success(f"✅ {len(df_hasil)} saham lolos kriteria SUPERKETAT (dari {len(gagal) + len(df_hasil)} diproses).")
-            st.dataframe(df_hasil, use_container_width=True, height=500)
+
+            kolom_ringkas = ["Kode", "Close", "Chg%", "Value_Miliar", "SK_Score",
+                              "Trend", "MS_Signal", "Vol_Spike"]
+            df_ringkas = df_hasil[[c for c in kolom_ringkas if c in df_hasil.columns]]
+            st.dataframe(df_ringkas, use_container_width=True, height=450)
+
+            with st.expander("📋 Tabel lengkap (semua kolom indikator)"):
+                st.dataframe(df_hasil, use_container_width=True, height=500)
 
             csv = df_hasil.to_csv(index=False).encode("utf-8")
-            st.download_button("💾 Download CSV", csv, "superketat_scan.csv", "text/csv")
+            st.download_button("💾 Download CSV (semua kolom)", csv, "superketat_scan.csv", "text/csv")
 
             with st.expander("📖 Cara membaca kolom"):
                 st.markdown("""
