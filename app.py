@@ -14,6 +14,14 @@ import valuasi
 
 st.set_page_config(page_title="IDX Toolkit — Scanner & Valuasi", layout="wide", page_icon="📈")
 
+
+def render_html(html: str):
+    """st.markdown menganggap baris yang diawali banyak spasi sebagai code block,
+    jadi HTML-nya tidak ter-render (muncul sebagai teks mentah). Hapus indentasi
+    di awal tiap baris dulu sebelum dikirim ke markdown."""
+    cleaned = "\n".join(line.lstrip() for line in html.split("\n"))
+    st.markdown(cleaned, unsafe_allow_html=True)
+
 st.title("📈 IDX Toolkit")
 st.caption("SUPERKETAT Scanner (CIA style) + Analisa Valuasi Saham — data via Yahoo Finance. "
            "Bukan rekomendasi investasi, selalu DYOR.")
@@ -153,7 +161,7 @@ with tab_valuasi:
             if data.get("error"):
                 st.error(f"❌ Error: {data['error']}")
             else:
-                st.markdown(valuasi.render_detail_card(data), unsafe_allow_html=True)
+                render_html(valuasi.render_detail_card(data))
 
                 peringatan = data.get("peringatan", [])
                 if peringatan:
@@ -213,7 +221,7 @@ with tab_valuasi:
             else:
                 top, final_scores = valuasi.compute_top_n(all_data, n=top_n)
 
-                st.markdown(valuasi.render_top_cards(top), unsafe_allow_html=True)
+                render_html(valuasi.render_top_cards(top))
 
                 st.markdown("---")
                 st.markdown("#### 📋 Tabel Ringkasan Semua Saham")
